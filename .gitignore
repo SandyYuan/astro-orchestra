@@ -1,5 +1,6 @@
 # Virtual environments
 agent/
+tests/
 venv/
 env/
 .env
@@ -58,4 +59,7 @@ htmlcov/
 .ipynb_checkpoints
 
 # MCP
-.mcp/ 
+.mcp/
+
+# Test files
+test_*.py 
