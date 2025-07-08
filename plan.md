@@ -82,24 +82,34 @@ astronomy-research-agent/
 3. **Dynamic Tool Discovery**: Agents query MCP servers for available tools and their schemas
 4. **LLM-Driven Tool Selection**: Agents use LLMs to decide which tools to call based on the task
 
-### Tool Execution Flow
+### Improved Workflow with Planning Phase
 
 ```
-User Query → Orchestrator Agent → Specialist Agent
-                                        ↓
-                                   Query MCP Servers
-                                   for Available Tools
-                                        ↓
-                                   LLM Decides Which
-                                   Tools to Call
-                                        ↓
-                                   Execute Tool Calls
-                                   via MCP Protocol
-                                        ↓
-                                   Process Results
-                                        ↓
-                                   Return to Orchestrator
+High-Level Research Idea → Orchestrator Agent → Planning Agent
+                                                      ↓
+                                              Detailed Research Plan
+                                                      ↓
+                                            Back to Orchestrator
+                                                      ↓
+                                              Specialist Agents
+                                                      ↓
+                                             Query MCP Servers
+                                             for Available Tools
+                                                      ↓
+                                             LLM Decides Which
+                                             Tools to Call
+                                                      ↓
+                                             Execute Tool Calls
+                                             via MCP Protocol
+                                                      ↓
+                                             Process Results
+                                                      ↓
+                                            Return to Orchestrator
 ```
+
+The system now intelligently distinguishes between:
+- **High-level research ideas** (e.g., "I want to model DESI LRG BAO measurements") → Planning Agent
+- **Specific tasks** (e.g., "Download DESI galaxy data") → Direct to specialist agents
 
 ## Core Component Implementations
 
@@ -333,53 +343,118 @@ class AgentState(TypedDict):
     total_tool_calls: int  # Counter for tool calls made
 ```
 
-### 3. Orchestrator Agent (`src/agents/orchestrator.py`)
+### 3. Planning Agent (`src/agents/planning.py`)
+
+```python
+from typing import Dict, Any
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from src.agents.base import BaseAgent
+from src.state.agent_state import AgentState
+import json
+
+class PlanningAgent(BaseAgent):
+    """Agent specialized in expanding research ideas into detailed execution plans."""
+    
+    def __init__(self, llm: ChatGoogleGenerativeAI = None):
+        super().__init__(
+            name="planning",
+            mcp_tools=["taskmaster-server"],
+            description="Expands research ideas into detailed, actionable execution plans"
+        )
+        self.llm = llm or ChatGoogleGenerativeAI(
+            model="gemini-1.5-pro",
+            temperature=0.1,  # Lower temperature for structured planning
+            google_api_key=settings.google_api_key
+        )
+    
+    async def process(self, state: AgentState) -> AgentState:
+        """Expand a research idea into a detailed execution plan."""
+        
+        current_task = state.get("current_task", "")
+        
+        # Create detailed planning prompt
+        planning_prompt = f\"\"\"You are a Research Planning Specialist for astronomy.
+        
+CURRENT RESEARCH IDEA: {current_task}
+
+AVAILABLE SPECIALIST AGENTS:
+1. DATA_GATHERING: Access DESI, LSST, CMB databases
+2. ANALYSIS: Statistical analysis, correlations, power spectra  
+3. THEORIST_SIMULATION: N-body simulations, cosmological modeling
+4. LITERATURE_REVIEWER: ArXiv search, paper synthesis
+
+Create a detailed execution plan with specific steps, dependencies, 
+and expected outputs. Return structured JSON with the plan.\"\"\"
+
+        # Process with LLM and store structured plan in state
+        response = await self.llm.ainvoke([SystemMessage(content=planning_prompt)])
+        
+        # Parse plan and update state
+        plan_data = json.loads(response.content)
+        state["task_breakdown"] = plan_data.get("detailed_steps", [])
+        state["metadata"]["research_plan"] = plan_data.get("research_plan", {})
+        state["metadata"]["planning_complete"] = True
+        
+        # Route to first execution step
+        next_step = plan_data.get("next_step", {})
+        state["next_agent"] = next_step.get("agent", "orchestrator")
+        
+        return state
+```
+
+### 4. Orchestrator Agent (`src/agents/orchestrator.py`)
 
 ```python
 from typing import Dict, Any, List
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 from src.agents.base import BaseAgent
 from src.state.agent_state import AgentState
 import json
 
 class OrchestratorAgent(BaseAgent):
-    """Main orchestrator that breaks down tasks and delegates to specialists."""
+    """Main orchestrator that routes between planning and specialist agents."""
     
-    def __init__(self, llm: ChatOpenAI = None):
+    def __init__(self, llm: ChatGoogleGenerativeAI = None):
         super().__init__(
-            name="orchestrator",
+            name="orchestrator", 
             mcp_tools=[],  # Orchestrator doesn't use external tools directly
-            description="Breaks down research tasks and delegates to specialist agents"
+            description="Routes between planning and specialist agents based on task type"
         )
-        self.llm = llm or ChatOpenAI(model="gpt-4", temperature=0)
+        self.llm = llm or ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
         
-    async def process(self, state: AgentState) -> AgentState:
-        """Look at current state and decide what to do next."""
+            async def process(self, state: AgentState) -> AgentState:
+        """Analyze request type and route to appropriate agent."""
         
-        # Build context from current state
+        current_task = state.get('current_task', '')
+        planning_complete = state.get('metadata', {}).get('planning_complete', False)
+        
+        # Build context for routing decision
         context = f"""Current astronomy research state:
         
-Task: {state.get('current_task', 'No task specified')}
-
-Progress:
-- Data gathered: {len(state.get('data_artifacts', {}))} datasets
-- Analysis complete: {len(state.get('analysis_results', {}))} results  
-- Literature reviewed: {len(state.get('literature_context', {}))} papers
-- Simulations run: {len(state.get('simulation_outputs', {}))} simulations
+Task: {current_task}
+Planning Complete: {planning_complete}
 
 Available agents:
-- data_gathering: Access DESI, LSST, CMB databases
+- planning: Expand research ideas into detailed execution plans
+- data_gathering: Access DESI, LSST, CMB databases  
 - analysis: Statistical analysis and computations
 - theorist_simulation: Run cosmological simulations
 - literature_reviewer: Search and synthesize papers
 
-Decide the next action. Return JSON:
+ROUTING LOGIC:
+1. HIGH-LEVEL IDEAS (no planning yet) → planning
+2. PLANNED PROJECTS (planning complete) → follow the plan
+3. SPECIFIC TASKS → direct to specialist agents
+
+Analyze the task and decide routing. Return JSON:
 {{
+    "reasoning": "why you chose this agent",
     "next_agent": "agent_name" or null (if done),
-    "instructions": "specific instructions for the next agent",
+    "instructions": "specific instructions for the next agent", 
     "is_complete": boolean,
-    "summary": "brief update for the user about what you're doing"
+    "summary": "brief update for the user"
 }}"""
 
         messages = [

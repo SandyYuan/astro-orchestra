@@ -31,6 +31,7 @@ async def chat_with_orchestrator():
         # Import components
         from src.state.agent_state import AgentState
         from src.agents.orchestrator import OrchestratorAgent
+        from src.agents.planning import PlanningAgent
         from src.agents.data_gathering import DataGatheringAgent
         from src.agents.analysis import AnalysisAgent
         from src.agents.theorist_simulation import TheoristSimulationAgent
@@ -43,6 +44,16 @@ async def chat_with_orchestrator():
         
         # Create all agents to show capabilities
         agents_info = {
+            "planning": {
+                "agent": PlanningAgent(),
+                "capabilities": [
+                    "Expand research ideas into detailed plans",
+                    "Break down complex tasks into actionable steps",
+                    "Identify required data sources and methodologies",
+                    "Plan workflow sequences and dependencies",
+                    "Risk assessment and alternative approaches"
+                ]
+            },
             "data_gathering": {
                 "agent": DataGatheringAgent(),
                 "capabilities": [

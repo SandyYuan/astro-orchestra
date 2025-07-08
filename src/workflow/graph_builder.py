@@ -3,6 +3,7 @@
 from langgraph.graph import StateGraph, END
 from src.state.agent_state import AgentState
 from src.agents.orchestrator import OrchestratorAgent
+from src.agents.planning import PlanningAgent
 from src.agents.data_gathering import DataGatheringAgent
 from src.agents.analysis import AnalysisAgent
 from src.agents.theorist_simulation import TheoristSimulationAgent
@@ -16,13 +17,14 @@ async def build_astronomy_graph():
     
     # Initialize agents
     orchestrator = OrchestratorAgent()
+    planning_agent = PlanningAgent()
     data_agent = DataGatheringAgent()
     analysis_agent = AnalysisAgent()
     simulation_agent = TheoristSimulationAgent()
     literature_agent = LiteratureReviewerAgent()
     
     # Initialize MCP connections for each agent
-    agents = [orchestrator, data_agent, analysis_agent, simulation_agent, literature_agent]
+    agents = [orchestrator, planning_agent, data_agent, analysis_agent, simulation_agent, literature_agent]
     for agent in agents:
         try:
             await agent.initialize_mcp_clients(MCP_TOOL_SERVERS)
@@ -55,6 +57,7 @@ async def build_astronomy_graph():
         return process
     
     workflow.add_node("orchestrator", await safe_process(orchestrator))
+    workflow.add_node("planning", await safe_process(planning_agent))
     workflow.add_node("data_gathering", await safe_process(data_agent))
     workflow.add_node("analysis", await safe_process(analysis_agent))
     workflow.add_node("theorist_simulation", await safe_process(simulation_agent))
@@ -64,7 +67,7 @@ async def build_astronomy_graph():
     def route_from_orchestrator(state: AgentState) -> str:
         """Route based on orchestrator's decision."""
         next_agent = state.get("next_agent")
-        if next_agent and next_agent in ["data_gathering", "analysis", "theorist_simulation", "literature_reviewer"]:
+        if next_agent and next_agent in ["planning", "data_gathering", "analysis", "theorist_simulation", "literature_reviewer"]:
             return next_agent
         return END
     
@@ -74,6 +77,7 @@ async def build_astronomy_graph():
         "orchestrator",
         route_from_orchestrator,
         {
+            "planning": "planning",
             "data_gathering": "data_gathering",
             "analysis": "analysis",
             "theorist_simulation": "theorist_simulation",
@@ -83,7 +87,7 @@ async def build_astronomy_graph():
     )
     
     # Add edges back to orchestrator from each specialist
-    for agent_name in ["data_gathering", "analysis", "theorist_simulation", "literature_reviewer"]:
+    for agent_name in ["planning", "data_gathering", "analysis", "theorist_simulation", "literature_reviewer"]:
         workflow.add_edge(agent_name, "orchestrator")
     
     # Compile the workflow

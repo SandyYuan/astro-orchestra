@@ -34,25 +34,31 @@ class OrchestratorAgent(BaseAgent):
         agent_capabilities = """
 AVAILABLE SPECIALIST AGENTS:
 
-1. DATA_GATHERING AGENT:
+1. PLANNING AGENT:
+   - Purpose: Expand research ideas into detailed execution plans
+   - Capabilities: Idea analysis, step-by-step planning, resource identification, risk assessment
+   - Use when: You have a high-level research idea that needs to be broken down into actionable steps
+   - MCP Tools: taskmaster-server
+
+2. DATA_GATHERING AGENT:
    - Purpose: Collect observational data from astronomical databases
    - Capabilities: Access DESI spectroscopic data, LSST imaging, CMB maps from ACT/Planck
-   - Use when: You need to retrieve existing observational data or measurements
+   - Use when: You need to retrieve specific existing observational data or measurements
    - MCP Tools: desi-server, lsst-server, cmb-server
 
-2. ANALYSIS AGENT:
+3. ANALYSIS AGENT:
    - Purpose: Perform statistical analysis and data processing
    - Capabilities: Correlation studies, clustering analysis, power spectrum calculations, parameter fitting
    - Use when: You have data and need to analyze it statistically
    - MCP Tools: statistics-server, correlation-server, power-spectrum-server
 
-3. THEORIST_SIMULATION AGENT:
+4. THEORIST_SIMULATION AGENT:
    - Purpose: Run theoretical simulations and cosmological modeling
    - Capabilities: N-body simulations, dark matter halo modeling, cosmological predictions, matter power spectra
-   - Use when: You need to run simulations, predict theoretical results, or model cosmological scenarios
+   - Use when: You need to run specific simulations with known parameters
    - MCP Tools: nbody-server, camb-server
 
-4. LITERATURE_REVIEWER AGENT:
+5. LITERATURE_REVIEWER AGENT:
    - Purpose: Search and synthesize scientific literature
    - Capabilities: ArXiv paper search, citation analysis, research context generation
    - Use when: You need background research or want to understand existing work
@@ -83,9 +89,12 @@ Recent conversation:
 
 INSTRUCTIONS:
 1. Carefully analyze the user's request
-2. Determine which agent is best suited for this specific task
-3. Consider what has already been done vs what still needs to be done
-4. Provide clear reasoning for your decision
+2. Determine if this is a HIGH-LEVEL RESEARCH IDEA or a SPECIFIC TASK:
+   - HIGH-LEVEL IDEAS need planning first (e.g., "I want to study dark matter using DESI", "model BAO measurements")
+   - SPECIFIC TASKS can go directly to specialists (e.g., "download DESI data", "run correlation analysis")
+3. Check if planning is already complete (metadata.planning_complete = true)
+4. Consider what has already been done vs what still needs to be done
+5. Provide clear reasoning for your decision
 
 CRITICAL: Return ONLY valid JSON in your response. No explanation text before or after.
 
@@ -98,11 +107,14 @@ Return your response as JSON:
     "summary": "Brief user-friendly explanation of what you're doing next"
 }}
 
-ROUTING EXAMPLES:
-- "run simulation" or "N-body" or "predict" → theorist_simulation
-- "get data" or "download" or "access database" → data_gathering  
-- "analyze data" or "statistics" or "correlation" → analysis
-- "search papers" or "literature review" → literature_reviewer"""
+ROUTING LOGIC:
+1. HIGH-LEVEL IDEAS (no planning yet) → planning
+2. PLANNED PROJECTS (planning complete) → follow the plan's next step
+3. SPECIFIC TASKS:
+   - "download/get/access data" → data_gathering
+   - "analyze/statistics/correlation" → analysis  
+   - "run simulation with parameters" → theorist_simulation
+   - "search papers/literature" → literature_reviewer"""
 
         messages = [
             SystemMessage(content=prompt)
@@ -172,6 +184,7 @@ ROUTING EXAMPLES:
                 
                 # Map to correct agent names
                 agent_name_mapping = {
+                    "planning": "planning",
                     "data gathering": "data_gathering",
                     "data_gathering": "data_gathering",
                     "analysis": "analysis",
@@ -218,9 +231,18 @@ ROUTING EXAMPLES:
             
             # Try to make a simple decision based on keywords
             current_task = state.get("current_task", "").lower()
-            if any(word in current_task for word in ["simulation", "simulate", "nbody", "n-body", "predict", "model", "theoretical"]):
+            planning_complete = state.get("metadata", {}).get("planning_complete", False)
+            
+            # Check if this seems like a high-level idea that needs planning
+            idea_keywords = ["i want to", "i'd like to", "model", "study", "investigate", "research", "understand", "explore"]
+            is_high_level_idea = any(phrase in current_task for phrase in idea_keywords) and not planning_complete
+            
+            if is_high_level_idea:
+                next_agent = "planning"
+                reasoning = "Detected high-level research idea that needs planning"
+            elif any(word in current_task for word in ["simulation", "simulate", "nbody", "n-body"]) and "run" in current_task:
                 next_agent = "theorist_simulation"
-                reasoning = "Detected simulation/modeling keywords in request"
+                reasoning = "Detected specific simulation execution request"
             elif any(word in current_task for word in ["data", "get", "download", "access", "desi", "lsst"]):
                 next_agent = "data_gathering"
                 reasoning = "Detected data access keywords in request"
@@ -231,8 +253,8 @@ ROUTING EXAMPLES:
                 next_agent = "literature_reviewer"
                 reasoning = "Detected literature search keywords in request"
             else:
-                next_agent = "data_gathering"
-                reasoning = "Default fallback - starting with data gathering"
+                next_agent = "planning"
+                reasoning = "Unclear request - routing to planning for clarification"
             
             fallback_response = f"{error_msg}\n\nBased on keywords in your request, I'll route to the {next_agent} agent. {reasoning}"
             state["messages"].append(AIMessage(content=fallback_response))
