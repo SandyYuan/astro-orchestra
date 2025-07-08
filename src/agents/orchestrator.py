@@ -123,23 +123,31 @@ ROUTING EXAMPLES:
         try:
             response = await self.llm.ainvoke(messages)
             
-            # Debug: Print the complete response
-            print(f"\n=== DEBUGGING LLM RESPONSE ===")
-            print(f"Response type: {type(response)}")
-            print(f"Response content type: {type(response.content)}")
-            print(f"Response content length: {len(response.content) if response.content else 'None'}")
-            print(f"Response content (full): '{response.content}'")
-            print(f"Response content repr: {repr(response.content)}")
-            print(f"=== END DEBUG ===\n")
-            
-            # Log the raw LLM response for debugging
+            # Log the LLM response for audit trail
             self.log_message(state, f"LLM Response Length: {len(response.content) if response.content else 'None'}")
-            self.log_message(state, f"LLM Response: {response.content}")
             
             if not response.content or not response.content.strip():
                 raise ValueError("Empty response from LLM")
             
-            decision = json.loads(response.content.strip())
+            # Extract JSON from markdown code blocks if present
+            content = response.content.strip()
+            if content.startswith("```json"):
+                # Find the JSON content between ```json and ```
+                start_idx = content.find("```json") + 7
+                end_idx = content.rfind("```")
+                if end_idx > start_idx:
+                    content = content[start_idx:end_idx].strip()
+                else:
+                    # If no closing ```, take everything after ```json
+                    content = content[start_idx:].strip()
+            elif content.startswith("```"):
+                # Handle generic ``` blocks
+                start_idx = content.find("```") + 3
+                end_idx = content.rfind("```")
+                if end_idx > start_idx:
+                    content = content[start_idx:end_idx].strip()
+            
+            decision = json.loads(content)
             
             # Validate the decision
             if not isinstance(decision, dict):
@@ -149,6 +157,21 @@ ROUTING EXAMPLES:
             for field in required_fields:
                 if field not in decision:
                     decision[field] = f"Missing {field}"
+            
+            # Normalize agent name (convert from display names to internal names)
+            next_agent = decision.get("next_agent")
+            if next_agent:
+                agent_name_mapping = {
+                    "DATA_GATHERING AGENT": "data_gathering",
+                    "ANALYSIS AGENT": "analysis", 
+                    "THEORIST_SIMULATION AGENT": "theorist_simulation",
+                    "LITERATURE_REVIEWER AGENT": "literature_reviewer",
+                    "data_gathering": "data_gathering",
+                    "analysis": "analysis",
+                    "theorist_simulation": "theorist_simulation", 
+                    "literature_reviewer": "literature_reviewer"
+                }
+                decision["next_agent"] = agent_name_mapping.get(next_agent, next_agent.lower().replace(" ", "_"))
             
             # Show the orchestrator's reasoning
             reasoning = decision.get("reasoning", "No reasoning provided")
