@@ -59,76 +59,76 @@ class AstroOrchestraMCP:
         # self.server = Server("astro-orchestra")
         self.server = MockMCPServer("astro-orchestra")
         
-        # Set up handlers
-        self.setup_handlers()
+        # Register handlers directly in __init__
+        self._register_handlers()
         
-    def setup_handlers(self):
-        """Set up MCP protocol handlers."""
-        
-        @self.server.list_tools()
-        async def handle_list_tools():
-            """Return the astronomy research tool."""
-            # TODO: Return actual MCP Tool objects
-            return [
-                {
-                    "name": "astronomy_research",
-                    "description": "Conduct astronomy research using a multi-agent system",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "The astronomy research question or task"
-                            },
-                            "context": {
-                                "type": "object",
-                                "description": "Additional context or parameters",
-                                "properties": {
-                                    "data_sources": {
-                                        "type": "array",
-                                        "items": {"type": "string"},
-                                        "description": "Preferred data sources (DESI, LSST, etc.)"
-                                    },
-                                    "analysis_type": {
-                                        "type": "string",
-                                        "description": "Type of analysis needed"
-                                    },
-                                    "include_simulations": {
-                                        "type": "boolean",
-                                        "description": "Whether to run simulations"
-                                    }
+    def _register_handlers(self):
+        """Register MCP protocol handlers directly."""
+        self.server.handlers['list_tools'] = self.handle_list_tools
+        self.server.handlers['call_tool'] = self.handle_call_tool
+    
+    async def handle_list_tools(self):
+        """Return the astronomy research tool."""
+        # TODO: Return actual MCP Tool objects
+        return [
+            {
+                "name": "astronomy_research",
+                "description": "Conduct astronomy research using a multi-agent system",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The astronomy research question or task"
+                        },
+                        "context": {
+                            "type": "object",
+                            "description": "Additional context or parameters",
+                            "properties": {
+                                "data_sources": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "Preferred data sources (DESI, LSST, etc.)"
+                                },
+                                "analysis_type": {
+                                    "type": "string",
+                                    "description": "Type of analysis needed"
+                                },
+                                "include_simulations": {
+                                    "type": "boolean",
+                                    "description": "Whether to run simulations"
                                 }
                             }
-                        },
-                        "required": ["query"]
-                    }
+                        }
+                    },
+                    "required": ["query"]
                 }
-            ]
+            }
+        ]
+    
+    async def handle_call_tool(self, name: str, arguments: Dict[str, Any]):
+        """Execute the astronomy research tool."""
         
-        @self.server.call_tool()
-        async def handle_call_tool(name: str, arguments: Dict[str, Any]):
-            """Execute the astronomy research tool."""
+        if name != "astronomy_research":
+            raise ValueError(f"Unknown tool: {name}")
+        
+        query = arguments.get("query", "")
+        context = arguments.get("context", {})
+        
+        try:
+            # Run the multi-agent workflow
+            result = await self._run_research_workflow(query, context)
+            return self._format_response(result)
             
-            if name != "astronomy_research":
-                raise ValueError(f"Unknown tool: {name}")
-            
-            query = arguments.get("query", "")
-            context = arguments.get("context", {})
-            
-            try:
-                # Run the multi-agent workflow
-                result = await self._run_research_workflow(query, context)
-                return self._format_response(result)
-                
-            except Exception as e:
-                error_response = {
-                    "status": "error",
-                    "message": f"Research workflow failed: {str(e)}",
-                    "traceback": traceback.format_exc(),
-                    "timestamp": datetime.now().isoformat()
-                }
-                # TODO: Return actual MCP response format
-                return [{"type": "text", "text": json.dumps(error_response, indent=2)}]
+        except Exception as e:
+            error_response = {
+                "status": "error",
+                "message": f"Research workflow failed: {str(e)}",
+                "traceback": traceback.format_exc(),
+                "timestamp": datetime.now().isoformat()
+            }
+            # TODO: Return actual MCP response format
+            return [{"type": "text", "text": json.dumps(error_response, indent=2)}]
     
     async def _run_research_workflow(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the multi-agent research workflow."""
