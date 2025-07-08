@@ -1,7 +1,5 @@
 """Configuration for external MCP tool servers."""
 
-from typing import Dict, List, Any
-
 
 MCP_TOOL_SERVERS = {
     "desi-server": {
@@ -52,24 +50,11 @@ MCP_TOOL_SERVERS = {
     }
 }
 
-
-def get_agent_tool_mapping() -> Dict[str, List[str]]:
-    """Return mapping of agents to their preferred MCP servers."""
-    return {
-        "orchestrator": [],  # Orchestrator doesn't use external tools directly
-        "data_gathering": ["desi-server", "lsst-server", "cmb-server"],
-        "analysis": ["statistics-server", "desi-server", "lsst-server"],
-        "theorist_simulation": ["nbody-server", "statistics-server"],
-        "literature_reviewer": ["arxiv-server"]
-    }
-
-
-def get_server_config(server_name: str) -> Dict[str, Any]:
-    """Get configuration for a specific MCP server."""
-    return MCP_TOOL_SERVERS.get(server_name, {})
-
-
-def get_available_tools(server_name: str) -> List[str]:
-    """Get list of available tools for a specific server."""
-    config = get_server_config(server_name)
-    return config.get("tools", []) 
+# Agent to MCP server mapping
+AGENT_TOOL_MAPPING = {
+    "orchestrator": [],  # Orchestrator doesn't use external tools directly
+    "data_gathering": ["desi-server", "lsst-server", "cmb-server"],
+    "analysis": ["statistics-server", "desi-server", "lsst-server"],
+    "theorist_simulation": ["nbody-server", "statistics-server"],
+    "literature_reviewer": ["arxiv-server"]
+} 

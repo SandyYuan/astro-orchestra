@@ -5,6 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 from src.agents.base import BaseAgent
 from src.state.agent_state import AgentState
+from config.settings import settings
 import json
 
 

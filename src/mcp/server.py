@@ -73,7 +73,7 @@ class AstroOrchestraMCP:
         return [
             {
                 "name": "astronomy_research",
-                "description": "Conduct astronomy research using a multi-agent system",
+                "description": "Conduct astronomy research tasks using a specialized multi-agent system. Capabilities include: (1) Data gathering from major astronomical surveys (DESI spectroscopy, LSST imaging, CMB experiments), (2) Statistical analysis and correlation studies, (3) Cosmological simulations and theoretical modeling, (4) Literature review and citation analysis, (5) Multi-step research workflows with complete audit trails. Can handle complex research questions requiring coordination between multiple data sources, analysis techniques, and theoretical frameworks. Returns detailed findings with data artifacts, analysis results, and research provenance.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

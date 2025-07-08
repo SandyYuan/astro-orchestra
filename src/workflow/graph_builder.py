@@ -75,15 +75,7 @@ async def build_astronomy_graph():
     workflow.set_entry_point("orchestrator")
     workflow.add_conditional_edges(
         "orchestrator",
-        route_from_orchestrator,
-        {
-            "planning": "planning",
-            "data_gathering": "data_gathering",
-            "analysis": "analysis",
-            "theorist_simulation": "theorist_simulation",
-            "literature_reviewer": "literature_reviewer",
-            END: END
-        }
+        route_from_orchestrator
     )
     
     # Add edges back to orchestrator from each specialist
