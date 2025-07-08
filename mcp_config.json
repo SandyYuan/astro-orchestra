@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "astro-orchestra": {
+      "command": "python",
+      "args": ["-m", "src.mcp.server"],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
+      }
+    }
+  }
+} 
