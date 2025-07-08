@@ -116,4 +116,15 @@ def create_workflow_runner():
             if self.workflow:
                 await cleanup_workflow(self.workflow)
     
-    return WorkflowRunner() 
+    return WorkflowRunner()
+
+# Server can send progress notifications during tool execution
+async def handle_call_tool(self, name: str, arguments: Dict[str, Any]):
+    # Start tool execution
+    await self.send_progress("Starting tool execution...")
+    
+    # During execution
+    await self.send_progress("50% complete...")
+    
+    # Return final result
+    return final_result 

@@ -5,7 +5,7 @@ as a single MCP tool that can be used by AI assistants.
 """
 
 import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Callable, Optional
 import json
 import traceback
 from datetime import datetime
@@ -25,6 +25,7 @@ class MockMCPServer:
     def __init__(self, name: str):
         self.name = name
         self.handlers = {}
+        self.progress_callback: Optional[Callable] = None
     
     def list_tools(self):
         """Decorator for list tools handler."""
@@ -40,15 +41,131 @@ class MockMCPServer:
             return func
         return decorator
     
+    async def send_progress(self, progress_data: Dict[str, Any]):
+        """Send progress notification during tool execution."""
+        if self.progress_callback:
+            await self.progress_callback(progress_data)
+        else:
+            # Mock implementation - just print for development
+            print(f"[PROGRESS] {progress_data}")
+    
     async def run_stdio(self):
         """Mock stdio runner."""
         print(f"Mock MCP server {self.name} would run here")
-        # In real implementation, this would handle MCP protocol
         await asyncio.sleep(1)
     
     async def wait_for_shutdown(self):
         """Mock shutdown handler."""
         await asyncio.sleep(1)
+
+
+class ProgressTracker:
+    """Tracks and manages progress updates during workflow execution."""
+    
+    def __init__(self, server: MockMCPServer):
+        self.server = server
+        self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.start_time = datetime.now()
+        self.step_count = 0
+        
+    async def send_agent_start(self, agent_name: str, task: str):
+        """Send progress when an agent starts working."""
+        self.step_count += 1
+        await self.server.send_progress({
+            "type": "agent_start",
+            "session_id": self.session_id,
+            "step": self.step_count,
+            "timestamp": datetime.now().isoformat(),
+            "agent": agent_name,
+            "task": task,
+            "status": "Agent starting execution"
+        })
+    
+    async def send_agent_reasoning(self, agent_name: str, reasoning: str):
+        """Send progress with agent reasoning."""
+        await self.server.send_progress({
+            "type": "agent_reasoning",
+            "session_id": self.session_id,
+            "step": self.step_count,
+            "timestamp": datetime.now().isoformat(),
+            "agent": agent_name,
+            "reasoning": reasoning,
+            "status": f"{agent_name} is reasoning..."
+        })
+    
+    async def send_tool_call(self, agent_name: str, tool_name: str, tool_args: Dict[str, Any]):
+        """Send progress when tool is called."""
+        await self.server.send_progress({
+            "type": "tool_call",
+            "session_id": self.session_id,
+            "step": self.step_count,
+            "timestamp": datetime.now().isoformat(),
+            "agent": agent_name,
+            "tool": tool_name,
+            "arguments": tool_args,
+            "status": f"{agent_name} calling {tool_name}"
+        })
+    
+    async def send_tool_result(self, agent_name: str, tool_name: str, result_summary: str):
+        """Send progress when tool returns results."""
+        await self.server.send_progress({
+            "type": "tool_result",
+            "session_id": self.session_id,
+            "step": self.step_count,
+            "timestamp": datetime.now().isoformat(),
+            "agent": agent_name,
+            "tool": tool_name,
+            "result_summary": result_summary,
+            "status": f"{agent_name} received {tool_name} results"
+        })
+    
+    async def send_data_gathered(self, file_info: Dict[str, Any]):
+        """Send progress when data is gathered."""
+        await self.server.send_progress({
+            "type": "data_gathered",
+            "session_id": self.session_id,
+            "step": self.step_count,
+            "timestamp": datetime.now().isoformat(),
+            "file_info": file_info,
+            "status": f"Data saved: {file_info.get('filename', 'unknown')}"
+        })
+    
+    async def send_analysis_complete(self, analysis_type: str, result_file: str):
+        """Send progress when analysis completes."""
+        await self.server.send_progress({
+            "type": "analysis_complete",
+            "session_id": self.session_id,
+            "step": self.step_count,
+            "timestamp": datetime.now().isoformat(),
+            "analysis_type": analysis_type,
+            "result_file": result_file,
+            "status": f"Analysis complete: {analysis_type}"
+        })
+    
+    async def send_route_decision(self, current_agent: str, next_agent: str, reasoning: str):
+        """Send progress when orchestrator makes routing decision."""
+        await self.server.send_progress({
+            "type": "route_decision",
+            "session_id": self.session_id,
+            "step": self.step_count,
+            "timestamp": datetime.now().isoformat(),
+            "current_agent": current_agent,
+            "next_agent": next_agent,
+            "reasoning": reasoning,
+            "status": f"Routing: {current_agent} → {next_agent}"
+        })
+    
+    async def send_workflow_complete(self, total_steps: int, total_time: float):
+        """Send progress when entire workflow completes."""
+        await self.server.send_progress({
+            "type": "workflow_complete",
+            "session_id": self.session_id,
+            "step": self.step_count,
+            "timestamp": datetime.now().isoformat(),
+            "total_steps": total_steps,
+            "total_time_seconds": total_time,
+            "status": "Research workflow completed"
+        })
 
 
 class AstroOrchestraMCP:
@@ -73,7 +190,7 @@ class AstroOrchestraMCP:
         return [
             {
                 "name": "astronomy_research",
-                "description": "Conduct astronomy research tasks using a specialized multi-agent system. Capabilities include: (1) Data gathering from major astronomical surveys (DESI spectroscopy, LSST imaging, CMB experiments), (2) Statistical analysis and correlation studies, (3) Cosmological simulations and theoretical modeling, (4) Literature review and citation analysis, (5) Multi-step research workflows with complete audit trails. Can handle complex research questions requiring coordination between multiple data sources, analysis techniques, and theoretical frameworks. Returns detailed findings with data artifacts, analysis results, and research provenance.",
+                "description": "Conduct astronomy research tasks using a specialized multi-agent system. Capabilities include: (1) Data gathering from major astronomical surveys (DESI spectroscopy, LSST imaging, CMB experiments), (2) Statistical analysis and correlation studies, (3) Cosmological simulations and theoretical modeling, (4) Literature review and citation analysis, (5) Multi-step research workflows with complete audit trails. Can handle complex research questions requiring coordination between multiple data sources, analysis techniques, and theoretical frameworks. Returns detailed findings with data artifacts, analysis results, and research provenance. Provides real-time progress updates showing agent reasoning, tool calls, and intermediate results.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -97,6 +214,10 @@ class AstroOrchestraMCP:
                                 "include_simulations": {
                                     "type": "boolean",
                                     "description": "Whether to run simulations"
+                                },
+                                "enable_progress_streaming": {
+                                    "type": "boolean",
+                                    "description": "Enable real-time progress updates (default: true)"
                                 }
                             }
                         }
@@ -107,17 +228,21 @@ class AstroOrchestraMCP:
         ]
     
     async def handle_call_tool(self, name: str, arguments: Dict[str, Any]):
-        """Execute the astronomy research tool."""
+        """Execute the astronomy research tool with progress streaming."""
         
         if name != "astronomy_research":
             raise ValueError(f"Unknown tool: {name}")
         
         query = arguments.get("query", "")
         context = arguments.get("context", {})
+        enable_progress = context.get("enable_progress_streaming", True)
+        
+        # Initialize progress tracking
+        progress_tracker = ProgressTracker(self.server) if enable_progress else None
         
         try:
-            # Run the multi-agent workflow
-            result = await self._run_research_workflow(query, context)
+            # Run the multi-agent workflow with progress tracking
+            result = await self._run_research_workflow(query, context, progress_tracker)
             return self._format_response(result)
             
         except Exception as e:
@@ -127,18 +252,44 @@ class AstroOrchestraMCP:
                 "traceback": traceback.format_exc(),
                 "timestamp": datetime.now().isoformat()
             }
+            
+            if progress_tracker:
+                await self.server.send_progress({
+                    "type": "error",
+                    "session_id": progress_tracker.session_id,
+                    "timestamp": datetime.now().isoformat(),
+                    "error": str(e),
+                    "status": "Workflow failed with error"
+                })
+            
             # TODO: Return actual MCP response format
             return [{"type": "text", "text": json.dumps(error_response, indent=2)}]
     
-    async def _run_research_workflow(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the multi-agent research workflow."""
+    async def _run_research_workflow(self, query: str, context: Dict[str, Any], 
+                                   progress_tracker: Optional[ProgressTracker] = None) -> Dict[str, Any]:
+        """Execute the multi-agent research workflow with progress tracking."""
+        
+        if progress_tracker:
+            await progress_tracker.send_agent_start("orchestrator", f"Starting research: {query}")
         
         # Create initial state
         initial_state = create_initial_state(query, context)
         
+        # Add progress tracker to state for agents to use
+        if progress_tracker:
+            initial_state["progress_tracker"] = progress_tracker
+        
         # Run workflow with proper cleanup
+        start_time = datetime.now()
         async with create_workflow_runner() as workflow:
             final_state = await workflow.ainvoke(initial_state)
+        
+        if progress_tracker:
+            total_time = (datetime.now() - start_time).total_seconds()
+            await progress_tracker.send_workflow_complete(
+                progress_tracker.step_count, 
+                total_time
+            )
         
         return final_state
     
@@ -167,6 +318,23 @@ class AstroOrchestraMCP:
             "type": "text",
             "text": main_content
         })
+        
+        # Add progress log as resource (if available)
+        progress_tracker = final_state.get("progress_tracker")
+        if progress_tracker:
+            response_parts.append({
+                "type": "resource",
+                "resource": {
+                    "uri": f"data://progress_log_{progress_tracker.session_id}",
+                    "mimeType": "application/json",
+                    "text": json.dumps({
+                        "session_id": progress_tracker.session_id,
+                        "start_time": progress_tracker.start_time.isoformat(),
+                        "total_steps": progress_tracker.step_count,
+                        "description": "Complete progress log with agent actions and reasoning"
+                    }, indent=2)
+                }
+            })
         
         # Add data artifacts as embedded resources
         if final_state.get("data_artifacts"):
@@ -212,7 +380,17 @@ class AstroOrchestraMCP:
         
         summary += f"- **Start time:** {start_time}\n"
         summary += f"- **Total actions:** {total_actions}\n"
-        summary += f"- **Tool calls made:** {total_tool_calls}\n\n"
+        summary += f"- **Tool calls made:** {total_tool_calls}\n"
+        
+        # Progress tracking stats
+        progress_tracker = state.get("progress_tracker")
+        if progress_tracker:
+            duration = (datetime.now() - progress_tracker.start_time).total_seconds()
+            summary += f"- **Session ID:** {progress_tracker.session_id}\n"
+            summary += f"- **Duration:** {duration:.1f} seconds\n"
+            summary += f"- **Progress steps:** {progress_tracker.step_count}\n"
+        
+        summary += "\n"
         
         # Data gathering results
         data_artifacts = state.get("data_artifacts", {})
@@ -263,6 +441,7 @@ class AstroOrchestraMCP:
         """Run the MCP server."""
         print("Starting Astro Orchestra MCP server...")
         print("Available tools: astronomy_research")
+        print("Features: Real-time progress streaming, multi-agent coordination")
         print("Server ready for connections.")
         
         # TODO: Replace with actual MCP server runner
