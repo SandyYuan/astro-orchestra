@@ -14,8 +14,8 @@ pip install -r requirements.txt
 
 2. **Configure Environment**:
 ```bash
-cp .env.example .env
-# Edit .env with your API keys
+# Create .env file with your Google API key
+echo "GOOGLE_API_KEY=your_google_api_key_here" > .env
 ```
 
 3. **Run MCP Server**:
@@ -24,7 +24,22 @@ python -m src.mcp.server
 ```
 
 4. **Configure Cursor**:
-Add the MCP configuration to your `.cursor/mcp_config.json` in your workspace.
+Add to your `.cursor/mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "astronomy-research": {
+      "command": "python",
+      "args": ["-m", "src.mcp.server"],
+      "cwd": "/path/to/astro-orchestra",
+      "env": {
+        "PYTHONPATH": ".",
+        "GOOGLE_API_KEY": "${env:GOOGLE_API_KEY}"
+      }
+    }
+  }
+}
+```
 
 ## Project Architecture
 

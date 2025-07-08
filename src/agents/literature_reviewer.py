@@ -1,7 +1,7 @@
 """Literature review agent for searching and synthesizing scientific papers."""
 
 from typing import Dict, Any
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import AIMessage
 from src.agents.base import BaseAgent
 from src.state.agent_state import AgentState
@@ -9,15 +9,22 @@ from config.settings import settings
 
 
 class LiteratureReviewerAgent(BaseAgent):
-    """Agent specialized in literature review and synthesis."""
+    """Agent specialized in reviewing scientific literature."""
     
-    def __init__(self, llm: ChatOpenAI = None):
+    def __init__(self, llm: ChatGoogleGenerativeAI = None):
         super().__init__(
             name="literature_reviewer",
-            mcp_tools=["arxiv-server"],
+            mcp_tools=["arxiv-server", "scholarly-server"],
             description="Searches and synthesizes scientific literature"
         )
-        self.llm = llm or ChatOpenAI(model=settings.specialist_model, temperature=0)
+        self.llm = llm or ChatGoogleGenerativeAI(
+            model=settings.specialist_model,
+            temperature=0,
+            max_tokens=None,
+            timeout=None,
+            max_retries=2,
+            google_api_key=settings.google_api_key
+        )
     
     async def process(self, state: AgentState) -> AgentState:
         """Search and review relevant literature."""

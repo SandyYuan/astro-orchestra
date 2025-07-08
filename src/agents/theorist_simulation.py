@@ -1,7 +1,7 @@
 """Theorist simulation agent for running cosmological simulations."""
 
 from typing import Dict, Any
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import AIMessage
 from src.agents.base import BaseAgent
 from src.state.agent_state import AgentState
@@ -11,13 +11,20 @@ from config.settings import settings
 class TheoristSimulationAgent(BaseAgent):
     """Agent specialized in running cosmological simulations."""
     
-    def __init__(self, llm: ChatOpenAI = None):
+    def __init__(self, llm: ChatGoogleGenerativeAI = None):
         super().__init__(
             name="theorist_simulation",
-            mcp_tools=["nbody-server", "statistics-server"],
-            description="Runs cosmological simulations and theoretical modeling"
+            mcp_tools=["nbody-server", "camb-server"],
+            description="Runs cosmological simulations and theoretical calculations"
         )
-        self.llm = llm or ChatOpenAI(model=settings.specialist_model, temperature=0)
+        self.llm = llm or ChatGoogleGenerativeAI(
+            model=settings.specialist_model,
+            temperature=0,
+            max_tokens=None,
+            timeout=None,
+            max_retries=2,
+            google_api_key=settings.google_api_key
+        )
     
     async def process(self, state: AgentState) -> AgentState:
         """Run simulations based on the current task."""

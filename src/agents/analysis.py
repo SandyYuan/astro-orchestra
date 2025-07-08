@@ -1,23 +1,31 @@
 """Analysis agent for statistical analysis of astronomy data."""
 
 from typing import Dict, Any
-from langchain_openai import ChatOpenAI
-from langchain.schema import AIMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.schema import AIMessage, SystemMessage
 from src.agents.base import BaseAgent
 from src.state.agent_state import AgentState
 from config.settings import settings
+import json
 
 
 class AnalysisAgent(BaseAgent):
     """Agent specialized in analyzing astronomy data."""
     
-    def __init__(self, llm: ChatOpenAI = None):
+    def __init__(self, llm: ChatGoogleGenerativeAI = None):
         super().__init__(
             name="analysis",
-            mcp_tools=["statistics-server", "correlation-server"],
+            mcp_tools=["statistics-server", "correlation-server", "power-spectrum-server"],
             description="Performs statistical analysis on astronomy data"
         )
-        self.llm = llm or ChatOpenAI(model=settings.specialist_model, temperature=0)
+        self.llm = llm or ChatGoogleGenerativeAI(
+            model=settings.specialist_model,
+            temperature=0,
+            max_tokens=None,
+            timeout=None,
+            max_retries=2,
+            google_api_key=settings.google_api_key
+        )
     
     async def process(self, state: AgentState) -> AgentState:
         """Analyze data using appropriate MCP tools."""

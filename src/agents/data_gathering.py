@@ -1,7 +1,7 @@
 """Data gathering agent for accessing astronomy databases and observatories."""
 
 from typing import Dict, Any, List
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, SystemMessage, AIMessage
 from src.agents.base import BaseAgent
 from src.state.agent_state import AgentState
@@ -12,16 +12,20 @@ import json
 class DataGatheringAgent(BaseAgent):
     """Agent specialized in gathering astronomy data from various sources."""
     
-    def __init__(self, llm: ChatOpenAI = None):
+    def __init__(self, llm: ChatGoogleGenerativeAI = None):
         super().__init__(
             name="data_gathering",
             mcp_tools=["desi-server", "lsst-server", "cmb-server"],  # MCP servers to connect to
             description="Gathers data from astronomy databases and observatories"
         )
         
-        self.llm = llm or ChatOpenAI(
-            model=settings.specialist_model, 
-            temperature=0
+        self.llm = llm or ChatGoogleGenerativeAI(
+            model=settings.specialist_model,
+            temperature=0,
+            max_tokens=None,
+            timeout=None,
+            max_retries=2,
+            google_api_key=settings.google_api_key
         )
         
     async def process(self, state: AgentState) -> AgentState:

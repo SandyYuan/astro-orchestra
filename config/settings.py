@@ -8,12 +8,12 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     # API Keys
-    openai_api_key: str
+    google_api_key: str
     arxiv_api_key: Optional[str] = None
     
     # Agent Configuration
-    orchestrator_model: str = "gpt-4"
-    specialist_model: str = "gpt-4"
+    orchestrator_model: str = "gemini-2.5-pro"
+    specialist_model: str = "gemini-2.5-flash"
     
     # Data Sources
     desi_base_url: str = "https://data.desi.lbl.gov/public/"
