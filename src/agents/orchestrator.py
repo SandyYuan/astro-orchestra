@@ -161,17 +161,32 @@ ROUTING EXAMPLES:
             # Normalize agent name (convert from display names to internal names)
             next_agent = decision.get("next_agent")
             if next_agent:
+                # Normalize to lowercase and remove common variations
+                normalized = next_agent.lower().strip()
+                
+                # Remove "agent" suffix if present
+                if normalized.endswith(" agent"):
+                    normalized = normalized[:-6].strip()
+                elif normalized.endswith("_agent"):
+                    normalized = normalized[:-6].strip()
+                
+                # Map to correct agent names
                 agent_name_mapping = {
-                    "DATA_GATHERING AGENT": "data_gathering",
-                    "ANALYSIS AGENT": "analysis", 
-                    "THEORIST_SIMULATION AGENT": "theorist_simulation",
-                    "LITERATURE_REVIEWER AGENT": "literature_reviewer",
+                    "data gathering": "data_gathering",
                     "data_gathering": "data_gathering",
                     "analysis": "analysis",
-                    "theorist_simulation": "theorist_simulation", 
+                    "theorist simulation": "theorist_simulation",
+                    "theorist_simulation": "theorist_simulation",
+                    "literature reviewer": "literature_reviewer", 
                     "literature_reviewer": "literature_reviewer"
                 }
-                decision["next_agent"] = agent_name_mapping.get(next_agent, next_agent.lower().replace(" ", "_"))
+                
+                # Try exact match first, then fallback to space-to-underscore conversion
+                if normalized in agent_name_mapping:
+                    decision["next_agent"] = agent_name_mapping[normalized]
+                else:
+                    # Fallback: convert spaces to underscores
+                    decision["next_agent"] = normalized.replace(" ", "_")
             
             # Show the orchestrator's reasoning
             reasoning = decision.get("reasoning", "No reasoning provided")
