@@ -1,6 +1,7 @@
 """LangGraph workflow builder for the multi-agent astronomy research system."""
 
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.sqlite import SqliteSaver
 from src.state.agent_state import AgentState
 from src.agents.orchestrator import OrchestratorAgent
 from src.agents.planning import PlanningAgent
@@ -82,8 +83,11 @@ async def build_astronomy_graph():
     for agent_name in ["planning", "data_gathering", "analysis", "theorist_simulation", "literature_reviewer"]:
         workflow.add_edge(agent_name, "orchestrator")
     
+    # Add before compile:
+    checkpointer = SqliteSaver.from_conn_string("astronomy_research.db")
+    
     # Compile the workflow
-    compiled_workflow = workflow.compile()
+    compiled_workflow = workflow.compile(checkpointer=checkpointer)
     
     # Store agents for cleanup
     compiled_workflow._agents = agents

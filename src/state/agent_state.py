@@ -67,6 +67,7 @@ class AgentState(TypedDict):
     # Workflow control
     next_agent: Optional[str]  # Where to route next
     final_response: Optional[str]  # Final answer when complete
+    human_feedback: List[Dict[str, Any]]  # Track all human inputs
     
     # Additional context
     metadata: Dict[str, Any]  # User-provided context/parameters
@@ -92,6 +93,7 @@ def create_initial_state(
         simulation_outputs={},
         next_agent=None,
         final_response=None,
+        human_feedback=[],
         metadata=context or {},
         start_time=datetime.now().isoformat(),
         total_tool_calls=0

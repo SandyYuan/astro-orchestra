@@ -8,7 +8,9 @@ import asyncio
 from typing import Dict, Any, List, Callable, Optional
 import json
 import traceback
+import uuid
 from datetime import datetime
+from langchain.schema import HumanMessage, AIMessage
 
 # Note: Replace with actual MCP imports when available
 # from mcp.server import Server, NotificationOptions
@@ -196,30 +198,15 @@ class AstroOrchestraMCP:
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "The astronomy research question or task"
+                            "description": "Research question or continuation feedback"
+                        },
+                        "session_id": {
+                            "type": "string",
+                            "description": "Session ID for continuing research (optional)"
                         },
                         "context": {
                             "type": "object",
-                            "description": "Additional context or parameters",
-                            "properties": {
-                                "data_sources": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Preferred data sources (DESI, LSST, etc.)"
-                                },
-                                "analysis_type": {
-                                    "type": "string",
-                                    "description": "Type of analysis needed"
-                                },
-                                "include_simulations": {
-                                    "type": "boolean",
-                                    "description": "Whether to run simulations"
-                                },
-                                "enable_progress_streaming": {
-                                    "type": "boolean",
-                                    "description": "Enable real-time progress updates (default: true)"
-                                }
-                            }
+                            "description": "Additional parameters (optional)"
                         }
                     },
                     "required": ["query"]
@@ -228,42 +215,81 @@ class AstroOrchestraMCP:
         ]
     
     async def handle_call_tool(self, name: str, arguments: Dict[str, Any]):
-        """Execute the astronomy research tool with progress streaming."""
+        """Execute astronomy research with pause/resume support."""
         
         if name != "astronomy_research":
             raise ValueError(f"Unknown tool: {name}")
         
-        query = arguments.get("query", "")
-        context = arguments.get("context", {})
-        enable_progress = context.get("enable_progress_streaming", True)
+        # Get or generate session ID
+        session_id = arguments.get("session_id")
+        if not session_id:
+            session_id = str(uuid.uuid4())
         
-        # Initialize progress tracking
-        progress_tracker = ProgressTracker(self.server) if enable_progress else None
+        config = {"configurable": {"thread_id": session_id}}
         
-        try:
-            # Run the multi-agent workflow with progress tracking
-            result = await self._run_research_workflow(query, context, progress_tracker)
-            return self._format_response(result)
+        # Get workflow instance
+        async with create_workflow_runner() as astronomy_workflow:
+            # Check if this is a continuing session
+            try:
+                current_state = await astronomy_workflow.aget_state(config)
+            except:
+                current_state = None
             
-        except Exception as e:
-            error_response = {
-                "status": "error",
-                "message": f"Research workflow failed: {str(e)}",
-                "traceback": traceback.format_exc(),
-                "timestamp": datetime.now().isoformat()
-            }
+            if current_state and current_state.values:
+                # Resuming - add human feedback
+                feedback = arguments.get("query", "continue")
+                
+                # Update state with human feedback
+                updates = {
+                    "messages": [HumanMessage(content=feedback)],
+                    "human_feedback": current_state.values.get("human_feedback", []) + [{
+                        "timestamp": datetime.now().isoformat(),
+                        "content": feedback
+                    }]
+                }
+                
+                await astronomy_workflow.aupdate_state(config, updates)
+                
+                # Resume workflow
+                await astronomy_workflow.ainvoke(None, config)
+            else:
+                # New session
+                query = arguments["query"]
+                initial_state = {
+                    "messages": [HumanMessage(content=query)],
+                    "action_log": [],
+                    "current_task": query,
+                    "human_feedback": [],  # Initialize empty
+                    "data_artifacts": {},
+                    "analysis_results": {},
+                    "literature_context": {},
+                    "simulation_outputs": {},
+                    "next_agent": None,
+                    "final_response": None,
+                    "metadata": arguments.get("context", {}),
+                    "start_time": datetime.now().isoformat(),
+                    "total_tool_calls": 0
+                }
+                
+                await astronomy_workflow.ainvoke(initial_state, config)
             
-            if progress_tracker:
-                await self.server.send_progress({
-                    "type": "error",
-                    "session_id": progress_tracker.session_id,
-                    "timestamp": datetime.now().isoformat(),
-                    "error": str(e),
-                    "status": "Workflow failed with error"
-                })
+            # Get final state
+            final_state = await astronomy_workflow.aget_state(config)
             
-            # TODO: Return actual MCP response format
-            return [{"type": "text", "text": json.dumps(error_response, indent=2)}]
+            # Extract last AI message
+            messages = final_state.values.get("messages", [])
+            last_ai_message = None
+            for msg in reversed(messages):
+                if isinstance(msg, AIMessage):
+                    last_ai_message = msg.content
+                    break
+            
+            # Format response with session info
+            status = "PAUSED" if final_state.values.get("next_agent") is None else "RUNNING"
+            response = f"[Session: {session_id}] [Status: {status}]\n\n"
+            response += last_ai_message or "No response generated"
+            
+            return [{"type": "text", "text": response}]
     
     async def _run_research_workflow(self, query: str, context: Dict[str, Any], 
                                    progress_tracker: Optional[ProgressTracker] = None) -> Dict[str, Any]:
