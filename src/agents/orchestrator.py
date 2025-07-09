@@ -5,6 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 from src.agents.base import BaseAgent
 from src.state.agent_state import AgentState
+from src.models import OrchestratorDecision
 from config.settings import settings
 import json
 
@@ -159,19 +160,12 @@ ROUTING LOGIC:
                 if end_idx > start_idx:
                     content = content[start_idx:end_idx].strip()
             
-            decision = json.loads(content)
-            
-            # Validate the decision
-            if not isinstance(decision, dict):
-                raise ValueError("Response is not a JSON object")
-                
-            required_fields = ["reasoning", "next_agent", "summary"]
-            for field in required_fields:
-                if field not in decision:
-                    decision[field] = f"Missing {field}"
+            # Parse and validate with Pydantic
+            decision_data = json.loads(content)
+            decision = OrchestratorDecision.model_validate(decision_data)
             
             # Normalize agent name (convert from display names to internal names)
-            next_agent = decision.get("next_agent")
+            next_agent = decision.next_agent
             if next_agent:
                 # Normalize to lowercase and remove common variations
                 normalized = next_agent.lower().strip()
@@ -196,14 +190,14 @@ ROUTING LOGIC:
                 
                 # Try exact match first, then fallback to space-to-underscore conversion
                 if normalized in agent_name_mapping:
-                    decision["next_agent"] = agent_name_mapping[normalized]
+                    decision.next_agent = agent_name_mapping[normalized]
                 else:
                     # Fallback: convert spaces to underscores
-                    decision["next_agent"] = normalized.replace(" ", "_")
+                    decision.next_agent = normalized.replace(" ", "_")
             
             # Show the orchestrator's reasoning
-            reasoning = decision.get("reasoning", "No reasoning provided")
-            summary = decision.get("summary", "Processing request...")
+            reasoning = decision.reasoning
+            summary = decision.summary
             
             # Create a detailed response that shows the thinking
             orchestrator_response = f"{summary}\n\nMy reasoning: {reasoning}"
@@ -212,17 +206,21 @@ ROUTING LOGIC:
             state["messages"].append(AIMessage(content=orchestrator_response))
             
             # Log the decision
-            next_agent = decision.get("next_agent")
+            next_agent = decision.next_agent
             self.log_message(state, f"Decision: Route to {next_agent} - {reasoning[:100]}...")
             
-            if decision.get("is_complete", False):
+            # Since we simplified the model, check if instructions field exists
+            is_complete = getattr(decision, 'is_complete', False)
+            instructions = getattr(decision, 'instructions', None)
+            
+            if is_complete:
                 # Final summary
                 state["final_response"] = orchestrator_response
                 state["next_agent"] = None  # Routes to END
             else:
                 # Route to specialist
                 state["next_agent"] = next_agent
-                state["current_task"] = decision.get("instructions", state["current_task"])
+                state["current_task"] = instructions or state["current_task"]
                 
         except json.JSONDecodeError as e:
             # Better error handling
