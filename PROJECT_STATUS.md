@@ -2,7 +2,7 @@
 
 ## IMPLEMENTED CORE COMPONENTS
 
-### 1. State Management System (COMPLETE)
+### 1. State Management System (COMPLETE + ENHANCED)
 **File**: `src/state/agent_state.py`
 
 **Implemented TypedDict Classes:**
@@ -17,6 +17,8 @@
 - Message history preservation
 - Workflow control and routing state
 - Error handling and recovery information
+- **Human feedback tracking with timestamps**
+- **Persistent state storage via SQLite checkpointing**
 
 ### 2. Configuration System (COMPLETE)
 **Files**: `config/settings.py`, `config/tool_configs.py`
@@ -41,17 +43,36 @@
 ### 4. Specialist Agents (FRAMEWORK COMPLETE)
 **Files**: `src/agents/orchestrator.py`, `src/agents/data_gathering.py`, etc.
 
-**Orchestrator Agent** (FUNCTIONAL):
+**Orchestrator Agent** (ENHANCED WITH HUMAN-IN-THE-LOOP):
 - LLM-driven task decomposition and routing
 - Google Gemini integration for decision making
 - State-aware routing between specialist agents
-- Progress tracking and completion detection
+- Human feedback integration for research guidance
+- Automatic pause detection after specialist completion
+- Simplified routing with human review loops
 
 **Specialist Agents** (PLACEHOLDER/PARTIAL):
 - DataGatheringAgent: Most complete, includes MCP tool planning
 - AnalysisAgent: Framework ready
 - TheoristSimulationAgent: Framework ready  
 - LiteratureReviewerAgent: Framework ready
+
+### 5. Human-in-the-Loop Research Workflow (COMPLETE)
+**Files**: Updated across multiple components
+
+**Pause/Resume Feature**:
+- **Automatic Pausing**: System pauses after each specialist agent completes
+- **Result Presentation**: Formats and displays specialist results for human review
+- **Session Management**: Persistent sessions with unique IDs for multi-day research
+- **Human Feedback Integration**: Incorporates human guidance into orchestrator routing
+- **State Persistence**: SQLite checkpointing for crash recovery and long-running workflows
+
+**Key Capabilities:**
+- Multi-day research workflows with resume functionality
+- Human guidance at critical decision points
+- Complete audit trail including human feedback
+- Session-based workflow management
+- Natural pause points between agent handoffs
 
 ## CURRENT IMPLEMENTATION STATUS
 
@@ -63,6 +84,9 @@
 - Google Gemini API integration
 - Orchestrator decision-making
 - Real LLM calls functional
+- **Human-in-the-loop pause/resume workflow**
+- **Persistent session management with SQLite**
+- **Automatic result presentation and feedback integration**
 
 **PLACEHOLDER/MOCK:**
 - MCP tool server connections (mock clients)
@@ -138,6 +162,7 @@
 - Hypothesis-driven investigation
 - Collaborative agent interactions
 - Research reproducibility
+- **Advanced human feedback patterns** (partially complete)
 
 **Integration & Deployment:**
 - MCP server auto-discovery
@@ -171,6 +196,15 @@
 - User preference for Google ecosystem
 - Strong reasoning capabilities
 
+### Human-in-the-Loop Design
+**Decision**: Natural pause points with persistent state (not dedicated human node)
+**Rationale**:
+- Minimal code complexity - leverages existing orchestrator logic
+- Natural workflow boundaries at specialist completion
+- SQLite persistence enables multi-day research workflows
+- Session-based resume without adding graph complexity
+- Elegant use of `next_agent = None` for automatic pausing
+
 ## QUICK START FOR DEVELOPMENT
 
 ### 1. Core Testing (WORKING NOW)
@@ -183,13 +217,21 @@ python test_core_workflow.py
 python test_orchestrator_llm.py
 ```
 
-### 2. Mock Development Workflow
+### 2. Mock Development Workflow (WITH PAUSE/RESUME)
 ```bash
 # Start with mock MCP servers for development
 python -m src.mcp.server
 
 # Test in Cursor with MCP configuration:
 # .cursor/mcp_config.json -> astronomy-research tool
+
+# First call - starts research
+{"query": "Analyze DESI BAO measurements"}
+# Returns: "[Session: abc123] [Status: PAUSED] Specialist Complete..."
+
+# Continue with feedback
+{"query": "Focus on z>2 galaxies", "session_id": "abc123"}
+# Returns: "[Session: abc123] [Status: PAUSED] Next specialist complete..."
 ```
 
 ### 3. Real Tool Integration (FUTURE)
@@ -250,6 +292,6 @@ python -m src.mcp.server     # Main orchestrator
 - **Production MCP**: Mock → Real MCP SDK needed
 - **Advanced analysis**: Basic framework, enhancement needed
 
-**CURRENT STATE**: Solid foundation with core multi-agent workflow functional. Ready for incremental enhancement with real tool implementations.
+**CURRENT STATE**: Solid foundation with core multi-agent workflow functional. **Human-in-the-loop pause/resume feature complete** - system now supports multi-day research workflows with persistent sessions and human guidance. Ready for incremental enhancement with real tool implementations.
 
-**NEXT MILESTONE**: Implement one real MCP tool server (suggest starting with DESI data access) to validate the full end-to-end workflow. 
+**NEXT MILESTONE**: Implement one real MCP tool server (suggest starting with DESI data access) to validate the full end-to-end workflow with actual astronomy data. The pause/resume feature will be valuable for testing real data workflows. 
