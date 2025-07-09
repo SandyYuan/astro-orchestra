@@ -56,12 +56,12 @@ async def build_astronomy_graph():
                 return state
         return process
     
-    workflow.add_node("orchestrator", await safe_process(orchestrator))
-    workflow.add_node("planning", await safe_process(planning_agent))
-    workflow.add_node("data_gathering", await safe_process(data_agent))
-    workflow.add_node("analysis", await safe_process(analysis_agent))
-    workflow.add_node("theorist_simulation", await safe_process(simulation_agent))
-    workflow.add_node("literature_reviewer", await safe_process(literature_agent))
+    workflow.add_node("orchestrator", safe_process(orchestrator))
+    workflow.add_node("planning", safe_process(planning_agent))
+    workflow.add_node("data_gathering", safe_process(data_agent))
+    workflow.add_node("analysis", safe_process(analysis_agent))
+    workflow.add_node("theorist_simulation", safe_process(simulation_agent))
+    workflow.add_node("literature_reviewer", safe_process(literature_agent))
     
     # Define routing logic
     def route_from_orchestrator(state: AgentState) -> str:
