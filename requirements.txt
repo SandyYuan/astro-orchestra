@@ -1,6 +1,7 @@
 # Core dependencies
 langchain>=0.1.0
 langgraph>=0.0.20
+langgraph-checkpoint-sqlite>=1.0.0
 langchain-google-genai>=1.0.0
 mcp>=0.1.0  # Model Context Protocol SDK - now works with Python 3.11
 pydantic>=2.0.0

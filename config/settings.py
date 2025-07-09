@@ -1,6 +1,7 @@
 """Configuration settings for Astro Orchestra."""
 
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from typing import Optional
 
 
@@ -29,9 +30,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     debug: bool = False
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"  # Ignore extra environment variables
+    )
 
 
 # Global settings instance

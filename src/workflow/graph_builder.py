@@ -1,7 +1,7 @@
 """LangGraph workflow builder for the multi-agent astronomy research system."""
 
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.memory import MemorySaver
 from src.state.agent_state import AgentState
 from src.agents.orchestrator import OrchestratorAgent
 from src.agents.planning import PlanningAgent
@@ -36,7 +36,7 @@ async def build_astronomy_graph():
     workflow = StateGraph(AgentState)
     
     # Add nodes with error handling wrappers
-    async def safe_process(agent):
+    def safe_process(agent):
         """Create a safe wrapper for agent processing."""
         async def process(state):
             try:
@@ -84,7 +84,7 @@ async def build_astronomy_graph():
         workflow.add_edge(agent_name, "orchestrator")
     
     # Add before compile:
-    checkpointer = SqliteSaver.from_conn_string("astronomy_research.db")
+    checkpointer = MemorySaver()
     
     # Compile the workflow
     compiled_workflow = workflow.compile(checkpointer=checkpointer)
@@ -105,22 +105,9 @@ async def cleanup_workflow(workflow):
                 print(f"Warning: Error cleaning up {agent.name}: {e}")
 
 
-def create_workflow_runner():
+async def create_workflow_runner():
     """Create a workflow runner that handles initialization and cleanup."""
-    
-    class WorkflowRunner:
-        def __init__(self):
-            self.workflow = None
-        
-        async def __aenter__(self):
-            self.workflow = await build_astronomy_graph()
-            return self.workflow
-        
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            if self.workflow:
-                await cleanup_workflow(self.workflow)
-    
-    return WorkflowRunner()
+    return await build_astronomy_graph()
 
 # Server can send progress notifications during tool execution
 async def handle_call_tool(self, name: str, arguments: Dict[str, Any]):
