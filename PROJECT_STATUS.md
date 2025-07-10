@@ -43,10 +43,12 @@
 ### 4. Specialist Agents (FRAMEWORK COMPLETE)
 **Files**: `src/agents/orchestrator.py`, `src/agents/data_gathering.py`, etc.
 
-**Orchestrator Agent** (ENHANCED WITH HUMAN-IN-THE-LOOP):
+**Orchestrator Agent** (ENHANCED WITH HUMAN-IN-THE-LOOP + INFORMATION GATHERING):
 - LLM-driven task decomposition and routing
 - Google Gemini integration for decision making
 - State-aware routing between specialist agents
+- **Intelligent information gathering**: Can request clarification from humans instead of blindly routing to specialists
+- **Three-way decision logic**: Route to specialist, request more info, or complete research
 - Human feedback integration for research guidance
 - Automatic pause detection after specialist completion
 - Simplified routing with human review loops
@@ -70,6 +72,7 @@
 **Key Capabilities:**
 - Multi-day research workflows with resume functionality
 - Human guidance at critical decision points
+- **Proactive information gathering**: Orchestrator can pause to request clarification before routing
 - Complete audit trail including human feedback
 - Session-based workflow management
 - Natural pause points between agent handoffs
@@ -85,6 +88,9 @@
 - Orchestrator decision-making
 - Real LLM calls functional
 - **Human-in-the-loop pause/resume workflow**
+- **Intelligent information gathering**: Orchestrator requests clarification when needed
+- **Three-way routing logic**: Specialist routing, info requests, or completion
+- **Enhanced chat interface**: `state` and `fullstate` commands for debugging
 - **Persistent session management with SQLite**
 - **Automatic result presentation and feedback integration**
 
@@ -215,6 +221,10 @@ python test_core_workflow.py
 
 # Test orchestrator with real LLM
 python test_orchestrator_llm.py
+
+# Interactive chat interface with debugging
+python chat_with_orchestrator.py
+# Use 'state' for summary, 'fullstate' for complete details
 ```
 
 ### 2. Mock Development Workflow (WITH PAUSE/RESUME)
@@ -225,7 +235,15 @@ python -m src.mcp.server
 # Test in Cursor with MCP configuration:
 # .cursor/mcp_config.json -> astronomy-research tool
 
-# First call - starts research
+# Example 1: Information gathering workflow
+{"query": "I want to run a simulation"}
+# Returns: "I need more information to proceed. What type of simulation...?"
+
+# Provide specifics
+{"query": "N-body simulation with 1024^3 particles, box size 500 Mpc/h"}
+# Returns: "[Session: abc123] Routing to Theorist Simulation Agent..."
+
+# Example 2: Specialist completion workflow  
 {"query": "Analyze DESI BAO measurements"}
 # Returns: "[Session: abc123] [Status: PAUSED] Specialist Complete..."
 
