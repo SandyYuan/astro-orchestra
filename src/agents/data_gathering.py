@@ -102,9 +102,25 @@ If no suitable tools are available, return an empty tool_calls array and explain
                 AIMessage(content=f"I'll gather {expected}. {reasoning}")
             )
         else:
-            state["messages"].append(
-                AIMessage(content=f"No suitable data gathering tools found. {plan.get('reasoning', '')}")
-            )
+            # Give a helpful response when tools aren't available (development mode)
+            task = state.get("current_task", "")
+            mock_response = f"""**Data Gathering Agent - Development Mode**
+
+**Request**: {task}
+
+**Status**: MCP tool servers not available (development environment)
+
+**What I would do in production**:
+- Connect to DESI, LSST, or CMB data servers
+- Query for relevant {task.lower()} data
+- Download and validate datasets
+- Return file metadata and summaries
+
+**Next Steps**: In production, this would route to the Analysis Agent with actual data files. For now, routing back to orchestrator.
+
+*Note: To test with real data, configure MCP tool servers in your environment.*"""
+            
+            state["messages"].append(AIMessage(content=mock_response))
         
         # Execute the tool calls via MCP
         gathered_files = {}  # Store file metadata, not actual data
@@ -158,7 +174,8 @@ If no suitable tools are available, return an empty tool_calls array and explain
             state["messages"].append(AIMessage(content=error_msg))
             self.log_message(state, "Data gathering failed")
         
-        # Route back to orchestrator
+        # Log completion and route back to orchestrator
+        self.log_message(state, f"Data gathering phase complete. Processed {len(gathered_files)} datasets.")
         state["next_agent"] = "orchestrator"
         
         return state

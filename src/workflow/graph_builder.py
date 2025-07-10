@@ -43,8 +43,9 @@ async def build_astronomy_graph():
                 return await agent.process(state)
             except Exception as e:
                 # Log error and route back to orchestrator
+                from langchain.schema import AIMessage
                 error_msg = f"Error in {agent.name}: {str(e)}"
-                state["messages"].append(f"System error: {error_msg}")
+                state["messages"].append(AIMessage(content=f"System error: {error_msg}"))
                 state["action_log"].append({
                     "timestamp": "error",
                     "agent": agent.name,

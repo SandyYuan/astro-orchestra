@@ -34,63 +34,143 @@ class OrchestratorAgent(BaseAgent):
         # Check if a specialist just completed
         last_action = state["action_log"][-1] if state["action_log"] else None
         
+        # Check if we just came from a specialist agent (regardless of tool_result)
         if (last_action and 
             last_action["agent"] != "orchestrator" and 
-            last_action.get("tool_result")):
+            last_action["agent"] in ["data_gathering", "analysis", "theorist_simulation", "literature_reviewer"]):
             
-            # Specialist completed - format results and pause
+            # Specialist completed - format results and pause for human review
             agent_name = last_action["agent"]
             
-            # Build result summary
-            summary = f"## {agent_name.replace('_', ' ').title()} Complete\n\n"
+            # Build comprehensive result summary
+            summary = f"## {agent_name.replace('_', ' ').title()} Agent Results\n\n"
             
             # Add specific results based on agent type
-            if agent_name == "data_gathering" and state.get("data_artifacts"):
-                for key, file_info in state["data_artifacts"].items():
-                    summary += f"- Saved: {file_info['filename']} ({file_info['size_bytes']:,} bytes)\n"
-                    if 'total_records' in file_info:
-                        summary += f"  Records: {file_info['total_records']}\n"
+            if agent_name == "data_gathering":
+                if state.get("data_artifacts"):
+                    summary += "**Data Gathered:**\n"
+                    for key, file_info in state["data_artifacts"].items():
+                        summary += f"- {file_info.get('filename', key)}"
+                        if 'size_bytes' in file_info:
+                            summary += f" ({file_info['size_bytes']:,} bytes)"
+                        if 'total_records' in file_info:
+                            summary += f" - {file_info['total_records']} records"
+                        summary += f"\n  Description: {file_info.get('description', 'N/A')}\n"
+                else:
+                    summary += "**Status:** No data artifacts created (development mode)\n"
             
-            elif agent_name == "analysis" and state.get("analysis_results"):
-                for key, result in state["analysis_results"].items():
-                    summary += f"- Analysis: {result.get('description', key)}\n"
-                    if 'summary' in result:
-                        summary += f"  Result: {result['summary']}\n"
+            elif agent_name == "analysis":
+                if state.get("analysis_results"):
+                    summary += "**Analysis Results:**\n"
+                    for key, result in state["analysis_results"].items():
+                        summary += f"- {result.get('description', key)}\n"
+                        if 'summary' in result:
+                            summary += f"  Result: {result['summary']}\n"
+                else:
+                    summary += "**Status:** No analysis results yet\n"
             
-            # Add similar handling for other agents...
+            elif agent_name == "theorist_simulation":
+                if state.get("simulation_outputs"):
+                    summary += "**Simulation Results:**\n"
+                    for key, sim in state["simulation_outputs"].items():
+                        summary += f"- {sim.get('description', key)}\n"
+                        if 'summary' in sim:
+                            summary += f"  Result: {sim['summary']}\n"
+                else:
+                    summary += "**Status:** No simulation outputs yet\n"
             
-            summary += "\nProvide instructions for next steps:"
+            elif agent_name == "literature_reviewer":
+                if state.get("literature_context"):
+                    summary += "**Literature Found:**\n"
+                    for key, lit in state["literature_context"].items():
+                        summary += f"- {lit.get('title', key)}\n"
+                        if 'summary' in lit:
+                            summary += f"  Summary: {lit['summary']}\n"
+                else:
+                    summary += "**Status:** No literature context yet\n"
             
-            # Update state and pause
+            # Add session info
+            summary += f"\n**Session:** {state.get('metadata', {}).get('session_id', 'unknown')}\n"
+            summary += f"**Total Steps:** {len(state.get('action_log', []))}\n\n"
+            
+            # Request human feedback
+            summary += "**Next Steps:** Please provide feedback or instructions for continuing the research.\n\n"
+            summary += "Options:\n"
+            summary += "- Request more data gathering\n"
+            summary += "- Proceed to analysis\n"
+            summary += "- Run simulations\n"
+            summary += "- Search literature\n"
+            summary += "- Complete the research\n"
+            
+            # Update state and pause for human input
             state["messages"].append(AIMessage(content=summary))
-            state["next_agent"] = None  # This triggers pause
+            state["next_agent"] = None  # This triggers pause - system waits for human feedback
             return state
         
-        # Not paused - determine next agent
-        # Include human feedback in decision
-        human_feedback = state.get("human_feedback", [])
-        latest_feedback = human_feedback[-1]["content"] if human_feedback else None
+        # Not paused - determine next agent based on current state and human feedback
+        # Get the most recent human message to understand their intent
+        latest_human_msg = None
+        for msg in reversed(state.get("messages", [])):
+            if isinstance(msg, HumanMessage):
+                latest_human_msg = msg.content
+                break
         
-        context = f"""Current research state:
-Task: {state.get('current_task')}
-Data files: {len(state.get('data_artifacts', {}))}
-Analyses: {len(state.get('analysis_results', {}))}
-Recent feedback: {latest_feedback}
+        # Check if this is initial task routing or follow-up after human feedback
+        data_count = len(state.get("data_artifacts", {}))
+        analysis_count = len(state.get("analysis_results", {}))
+        simulation_count = len(state.get("simulation_outputs", {}))
+        literature_count = len(state.get("literature_context", {}))
+        
+        system_prompt = """You are an orchestrator for astronomy research. Based on the current research state and human input, determine the next specialist agent to route to.
 
-Determine next agent (data_gathering, analysis, theorist_simulation, literature_reviewer) or null if complete.
-Return JSON: {{"next_agent": "...", "instructions": "...", "reasoning": "..."}}"""
+Available agents:
+- data_gathering: Access astronomy databases (DESI, LSST, CMB)
+- analysis: Statistical analysis, correlations, power spectra  
+- theorist_simulation: N-body simulations, cosmological modeling
+- literature_reviewer: Paper search, citation analysis
+
+Return JSON: {"next_agent": "agent_name", "instructions": "specific task", "reasoning": "why this agent"}
+
+If the research is complete or the human wants to end, return: {"next_agent": null, "instructions": null, "reasoning": "explanation"}"""
         
-        messages = [SystemMessage(content=context)]
+        user_query = f"""Current research state:
+Human's request: {latest_human_msg}
+Data files: {data_count}
+Analysis results: {analysis_count}
+Simulation outputs: {simulation_count}
+Literature items: {literature_count}
+
+Based on the human's request, what should be the next step?"""
+        
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_query)
+        ]
         response = await self.llm.ainvoke(messages)
         
         try:
             decision = json.loads(response.content)
             state["next_agent"] = decision.get("next_agent")
-            if decision.get("next_agent"):
-                state["current_task"] = decision.get("instructions", state["current_task"])
-                state["messages"].append(AIMessage(content=decision["reasoning"]))
-        except:
-            state["next_agent"] = "data_gathering"  # Default
+            
+            # Create a comprehensive response
+            reasoning = decision.get("reasoning", "Routing to specialist agent")
+            next_agent = decision.get("next_agent")
+            instructions = decision.get("instructions", state["current_task"])
+            
+            if next_agent:
+                state["current_task"] = instructions
+                response_msg = f"I'll route this to the **{next_agent.replace('_', ' ').title()} Agent**.\n\n"
+                response_msg += f"**Task**: {instructions}\n\n"
+                response_msg += f"**Reasoning**: {reasoning}"
+                state["messages"].append(AIMessage(content=response_msg))
+            else:
+                state["messages"].append(AIMessage(content=f"Research complete. {reasoning}"))
+                
+        except Exception as e:
+            # Better fallback with explanation
+            state["next_agent"] = "data_gathering"
+            fallback_msg = f"I'll start by gathering the requested astronomy data. The system will route to the Data Gathering Agent to access the relevant databases and collect the information you need."
+            state["messages"].append(AIMessage(content=fallback_msg))
         
         return state
     
