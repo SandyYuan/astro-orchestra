@@ -31,6 +31,25 @@ class OrchestratorAgent(BaseAgent):
     async def process(self, state: AgentState) -> AgentState:
         """Process state - pause after specialist completion or route to next agent."""
         
+        # Check for explicit fast track flag first
+        if state.get("fast_track"):
+            fast_track_agent = state["fast_track"]
+            del state["fast_track"]  # Clear the flag
+            
+            # Get the most recent human message
+            latest_human_msg = None
+            for msg in reversed(state.get("messages", [])):
+                if isinstance(msg, HumanMessage):
+                    latest_human_msg = msg.content
+                    break
+            
+            state["next_agent"] = fast_track_agent
+            state["current_task"] = latest_human_msg
+            
+            response_msg = f"Routing back to **{fast_track_agent.replace('_', ' ').title()} Agent** with your additional information."
+            state["messages"].append(AIMessage(content=response_msg))
+            return state
+        
         # Check if a specialist just completed
         last_action = state["action_log"][-1] if state["action_log"] else None
         
