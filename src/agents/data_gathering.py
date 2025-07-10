@@ -36,6 +36,23 @@ class DataGatheringAgent(BaseAgent):
         
         # Extract the current task
         current_task = state.get("current_task", "")
+        
+        # Single LLM call to determine both: sufficient info + fast track eligibility
+        decision = await self._analyze_task_requirements(current_task)
+        
+        if not decision["has_sufficient_info"]:
+            # Need more info - set fast track if applicable
+            if decision["should_fast_track"]:
+                state["fast_track"] = "data_gathering"
+            
+            # Request more information
+            clarification_msg = decision["clarification_message"]
+            state["messages"].append(AIMessage(content=clarification_msg))
+            state["next_agent"] = None
+            self.log_message(state, "Requested more data gathering parameters from user")
+            return state
+        
+        # We have sufficient parameters - proceed with data gathering
         metadata = state.get("metadata", {})
         
         # Get available tools from MCP servers
@@ -241,3 +258,54 @@ If no suitable tools are available, return an empty tool_calls array and explain
             return metadata
             
         return None 
+    
+    async def _analyze_task_requirements(self, task: str) -> dict:
+        """Single LLM call to analyze task and determine next steps."""
+        prompt = f"""
+        Analyze this data gathering task: "{task}"
+        
+        Determine:
+        1. Do I have sufficient information to gather meaningful astronomy data?
+        2. If not, is this a straightforward data request that should fast-track back to me?
+        
+        For sufficient information, I need specifics like: object names/coordinates, survey (DESI/LSST/CMB), redshift ranges, object types, time ranges, or specific datasets.
+        
+        Fast track if:
+        - This is clearly a data request, just missing technical details
+        - User will likely provide specifics and want data gathering to proceed
+        
+        Don't fast track if:
+        - Request is ambiguous about what type of work to do
+        - User might want to change direction entirely
+        - Unclear if they want data gathering vs analysis vs simulation
+        
+        Return JSON:
+        {{
+            "has_sufficient_info": true/false,
+            "should_fast_track": true/false,
+            "clarification_message": "specific message if more info needed"
+        }}
+        """
+        
+        response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+        
+        try:
+            # Strip markdown code block formatting if present
+            content = response.content.strip()
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.startswith("```"):
+                content = content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
+            
+            result = json.loads(content)
+            return result
+        except:
+            # Fallback if JSON parsing fails
+            return {
+                "has_sufficient_info": False,
+                "should_fast_track": False,
+                "clarification_message": "I need more specific information about what data to gather. Please specify: data source (DESI/LSST/CMB), object types, coordinates/names, redshift ranges, or time periods."
+            } 
