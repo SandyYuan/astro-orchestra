@@ -44,12 +44,13 @@ Add to your `.cursor/mcp_config.json`:
 ## Project Architecture
 
 ```mermaid
+%%{init: {'flowchart': {'nodeSpacing': 50, 'rankSpacing': 80}}}%%
 graph TD
-    %% Styling
-    classDef human fill:#FFE4B5,stroke:#FF8C00,stroke-width:3px
-    classDef orchestrator fill:#E6E6FA,stroke:#9370DB,stroke-width:3px
-    classDef specialist fill:#B0E0E6,stroke:#4682B4,stroke-width:2px
-    classDef tool fill:#90EE90,stroke:#228B22,stroke-width:2px
+    %% Styling with darker text
+    classDef human fill:#FFE4B5,stroke:#FF8C00,stroke-width:3px,color:#333
+    classDef orchestrator fill:#E6E6FA,stroke:#9370DB,stroke-width:3px,color:#333
+    classDef specialist fill:#B0E0E6,stroke:#4682B4,stroke-width:2px,color:#333
+    classDef tool fill:#90EE90,stroke:#228B22,stroke-width:2px,color:#333
     classDef langgraph stroke:#4169E1,stroke-width:3px
     classDef mcp stroke:#32CD32,stroke-width:3px,stroke-dasharray: 5 5
     classDef feedback stroke:#FF6347,stroke-width:3px
