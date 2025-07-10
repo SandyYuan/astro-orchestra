@@ -82,10 +82,13 @@ class OrchestratorAgent(BaseAgent):
             elif agent_name == "literature_reviewer":
                 if state.get("literature_context"):
                     summary += "**Literature Found:**\n"
-                    for key, lit in state["literature_context"].items():
-                        summary += f"- {lit.get('title', key)}\n"
-                        if 'summary' in lit:
-                            summary += f"  Summary: {lit['summary']}\n"
+                    for key, papers in state["literature_context"].items():
+                        summary += f"- {key}:\n"
+                        if isinstance(papers, list):
+                            for paper in papers:
+                                summary += f"  • {paper}\n"
+                        else:
+                            summary += f"  • {papers}\n"
                 else:
                     summary += "**Status:** No literature context yet\n"
             
