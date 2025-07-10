@@ -150,12 +150,13 @@ Based on the human's request, what should be the next step?"""
         
         try:
             decision = json.loads(response.content)
-            state["next_agent"] = decision.get("next_agent")
-            
-            # Create a comprehensive response
-            reasoning = decision.get("reasoning", "Routing to specialist agent")
             next_agent = decision.get("next_agent")
-            instructions = decision.get("instructions", state["current_task"])
+            
+            state["next_agent"] = next_agent
+            
+            # Create response
+            reasoning = decision.get("reasoning", "Routing to specialist agent")
+            instructions = decision.get("instructions", latest_human_msg)
             
             if next_agent:
                 state["current_task"] = instructions
@@ -167,10 +168,9 @@ Based on the human's request, what should be the next step?"""
                 state["messages"].append(AIMessage(content=f"Research complete. {reasoning}"))
                 
         except Exception as e:
-            # Better fallback with explanation
-            state["next_agent"] = "data_gathering"
-            fallback_msg = f"I'll start by gathering the requested astronomy data. The system will route to the Data Gathering Agent to access the relevant databases and collect the information you need."
-            state["messages"].append(AIMessage(content=fallback_msg))
+            # Simple response when tools aren't available or routing fails
+            state["messages"].append(AIMessage(content=f"I don't have the appropriate tools to handle this request: {latest_human_msg}"))
+            state["next_agent"] = None  # Pause for human to provide different request
         
         return state
     
