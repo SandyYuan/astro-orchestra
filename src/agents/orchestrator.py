@@ -121,7 +121,7 @@ class OrchestratorAgent(BaseAgent):
         simulation_count = len(state.get("simulation_outputs", {}))
         literature_count = len(state.get("literature_context", {}))
         
-        system_prompt = """You are an orchestrator for astronomy research. Based on the current research state and human input, determine the next specialist agent to route to.
+        system_prompt = """You are an orchestrator for astronomy research. Based on the current research state and human input, determine the next action.
 
 Available agents:
 - data_gathering: Access astronomy databases (DESI, LSST, CMB)
@@ -129,9 +129,13 @@ Available agents:
 - theorist_simulation: N-body simulations, cosmological modeling
 - literature_reviewer: Paper search, citation analysis
 
-Return JSON: {"next_agent": "agent_name", "instructions": "specific task", "reasoning": "why this agent"}
+Return JSON with one of these patterns:
 
-If the research is complete or the human wants to end, return: {"next_agent": null, "instructions": null, "reasoning": "explanation"}"""
+1. Route to specialist: {"next_agent": "agent_name", "instructions": "specific task", "reasoning": "why this agent"}
+
+2. Request more info: {"next_agent": null, "instructions": "question for human", "reasoning": "need_more_info: explanation"}
+
+3. Research complete: {"next_agent": null, "instructions": null, "reasoning": "complete: explanation"}"""
         
         user_query = f"""Current research state:
 Human's request: {latest_human_msg}
@@ -184,7 +188,19 @@ Based on the human's request, what should be the next step?"""
                 response_msg += f"**Reasoning**: {reasoning}"
                 state["messages"].append(AIMessage(content=response_msg))
             else:
-                state["messages"].append(AIMessage(content=f"Research complete. {reasoning}"))
+                # Check if this is a request for more info vs research complete
+                if reasoning.startswith("need_more_info:"):
+                    # Extract the explanation and the question for the human
+                    explanation = reasoning.replace("need_more_info:", "").strip()
+                    question = instructions or "Could you provide more details?"
+                    
+                    response_msg = f"**I need more information to proceed.**\n\n"
+                    response_msg += f"{question}\n\n"
+                    response_msg += f"**Why**: {explanation}"
+                    state["messages"].append(AIMessage(content=response_msg))
+                else:
+                    # Research complete
+                    state["messages"].append(AIMessage(content=f"Research complete. {reasoning}"))
                 
         except Exception as e:
             # Debug output for errors
