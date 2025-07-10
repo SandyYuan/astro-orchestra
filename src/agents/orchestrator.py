@@ -149,8 +149,27 @@ Based on the human's request, what should be the next step?"""
         response = await self.llm.ainvoke(messages)
         
         try:
-            decision = json.loads(response.content)
+            # Strip markdown code block formatting if present
+            response_content = response.content.strip()
+            if response_content.startswith("```json"):
+                response_content = response_content[7:]  # Remove ```json
+            if response_content.startswith("```"):
+                response_content = response_content[3:]   # Remove ```
+            if response_content.endswith("```"):
+                response_content = response_content[:-3]  # Remove closing ```
+            response_content = response_content.strip()
+            
+            decision = json.loads(response_content)
             next_agent = decision.get("next_agent")
+            
+            # Debug output - show the LLM's reasoning
+            print(f"\n--- ORCHESTRATOR DEBUG ---")
+            print(f"User request: {latest_human_msg}")
+            print(f"LLM response: {response.content}")
+            print(f"Cleaned response: {response_content}")
+            print(f"Parsed next_agent: {next_agent}")
+            print(f"Parsed reasoning: {decision.get('reasoning', 'No reasoning provided')}")
+            print("--- END DEBUG ---\n")
             
             state["next_agent"] = next_agent
             
@@ -168,6 +187,13 @@ Based on the human's request, what should be the next step?"""
                 state["messages"].append(AIMessage(content=f"Research complete. {reasoning}"))
                 
         except Exception as e:
+            # Debug output for errors
+            print(f"\n--- ORCHESTRATOR ERROR DEBUG ---")
+            print(f"User request: {latest_human_msg}")
+            print(f"LLM raw response: {response.content}")
+            print(f"Error: {str(e)}")
+            print("--- END ERROR DEBUG ---\n")
+            
             # Simple response when tools aren't available or routing fails
             state["messages"].append(AIMessage(content=f"I don't have the appropriate tools to handle this request: {latest_human_msg}"))
             state["next_agent"] = None  # Pause for human to provide different request
