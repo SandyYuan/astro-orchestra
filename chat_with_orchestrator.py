@@ -42,6 +42,7 @@ async def chat_with_system():
         print("\nCommands:")
         print("  'quit'/'q' - Exit")
         print("  'state'    - Show current state") 
+        print("  'fullstate' - Show complete state with messages")
         print("  'clear'    - Start fresh session")
         print("\nTry queries like:")
         print("  'Download DESI galaxy data'")
@@ -70,6 +71,10 @@ async def chat_with_system():
                 
             if user_input.lower() == 'state':
                 show_state(conversation_state)
+                continue
+                
+            if user_input.lower() == 'fullstate':
+                show_state_full(conversation_state)
                 continue
                 
             if not user_input:
@@ -179,6 +184,90 @@ def show_state(state):
         print(f"  {name}: {count}")
 
 
+def show_state_full(state):
+    """Show complete conversation state including all messages and actions."""
+    print(f"\n{'='*60}")
+    print("FULL CONVERSATION STATE")
+    print(f"{'='*60}")
+    
+    session_id = state.get("metadata", {}).get("session_id", "unknown")
+    print(f"Session: {session_id}")
+    print(f"Current Task: {state.get('current_task', 'None')}")
+    print(f"Start Time: {state.get('start_time', 'Unknown')}")
+    print(f"Next Agent: {state.get('next_agent', 'None')}")
+    
+    # Show all messages
+    messages = state.get("messages", [])
+    print(f"\n--- MESSAGES ({len(messages)}) ---")
+    for i, msg in enumerate(messages):
+        if hasattr(msg, 'content'):
+            msg_type = "Human" if msg.__class__.__name__ == "HumanMessage" else "AI"
+            content = msg.content
+            print(f"\n{i+1}. [{msg_type}]: {content}")
+    
+    # Show action log
+    actions = state.get("action_log", [])
+    print(f"\n--- ACTION LOG ({len(actions)}) ---")
+    for i, action in enumerate(actions):
+        print(f"\n{i+1}. [{action.get('timestamp', 'no-time')}] {action.get('agent', 'unknown')}")
+        print(f"   Type: {action.get('action_type', 'unknown')}")
+        if action.get('message'):
+            print(f"   Message: {action.get('message')}")
+        if action.get('tool_call'):
+            tool_call = action['tool_call']
+            print(f"   Tool: {tool_call.get('tool', 'unknown')} on {tool_call.get('mcp_server', 'unknown')}")
+            if tool_call.get('duration_ms'):
+                print(f"   Duration: {tool_call['duration_ms']:.2f}ms")
+        if action.get('tool_result'):
+            result = action['tool_result']
+            print(f"   Result: {result.get('status', 'unknown')}")
+            if result.get('summary'):
+                print(f"   Summary: {result['summary']}")
+    
+    # Show research artifacts in detail
+    print(f"\n--- RESEARCH ARTIFACTS ---")
+    
+    data_artifacts = state.get("data_artifacts", {})
+    if data_artifacts:
+        print(f"\nData Files ({len(data_artifacts)}):")
+        for key, artifact in data_artifacts.items():
+            print(f"  • {key}: {artifact}")
+    
+    analysis_results = state.get("analysis_results", {})
+    if analysis_results:
+        print(f"\nAnalysis Results ({len(analysis_results)}):")
+        for key, result in analysis_results.items():
+            print(f"  • {key}: {result}")
+    
+    simulation_outputs = state.get("simulation_outputs", {})
+    if simulation_outputs:
+        print(f"\nSimulation Outputs ({len(simulation_outputs)}):")
+        for key, output in simulation_outputs.items():
+            print(f"  • {key}: {output}")
+    
+    literature_context = state.get("literature_context", {})
+    if literature_context:
+        print(f"\nLiterature Context ({len(literature_context)}):")
+        for key, context in literature_context.items():
+            print(f"  • {key}: {context}")
+    
+    # Show human feedback
+    human_feedback = state.get("human_feedback", [])
+    if human_feedback:
+        print(f"\n--- HUMAN FEEDBACK ({len(human_feedback)}) ---")
+        for i, feedback in enumerate(human_feedback):
+            print(f"{i+1}. {feedback}")
+    
+    # Show metadata
+    metadata = state.get("metadata", {})
+    if metadata:
+        print(f"\n--- METADATA ---")
+        for key, value in metadata.items():
+            print(f"  {key}: {value}")
+    
+    print(f"\n{'='*60}")
+
+
 def show_help():
     """Show help information."""
     print("""
@@ -191,6 +280,7 @@ The system handles all routing, execution, and coordination internally.
 Commands:
   'quit'/'q' - Exit the chat
   'state'    - Show current conversation state  
+  'fullstate' - Show complete state with messages
   'clear'    - Start a fresh session
 
 Example Queries:
